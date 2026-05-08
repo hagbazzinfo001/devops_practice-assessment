@@ -19,6 +19,7 @@ k8s/*-secrets.yaml
 credentials.json
 aws_credentials/
 
+
 # ==========================================
 # 🛑 TERRAFORM HYGIENE
 # ==========================================
@@ -37,6 +38,9 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+implementation_plan.md
+terraform_runbook.md
+walkthrough.md
 
 # Exclude tfplan files
 *.tfplan

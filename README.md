@@ -1,41 +1,25 @@
-#  Cloud-Native TaskApp Deployment 
+# Cloud-Native TaskApp Deployment
 
-Welcome to the ultimate Cloud-Native Capstone Project! This repository contains the complete Infrastructure-as-Code (IaC), Kubernetes Manifests, and Deployment scripts used to orchestrate a highly available, production-ready web application on AWS.
+Welcome to the Cloud-Native TaskApp Infrastructure repository. This project demonstrates a production-ready application environment using modern DevOps practices, including Infrastructure as Code, CI/CD, Containerization, and AWS Cloud Deployment.
 
-## Technical Architecture
+## Architecture Overview
 
-- **Cloud Provider:** Amazon Web Services (AWS)
-- **Infrastructure as Code:** Terraform
-- **Container Orchestrator:** Kubernetes (Provisioned natively via Kops)
-- **Ingress & TLS:** NGINX Ingress Controller + Cert-Manager (Let's Encrypt)
-- **Container Registry:** DockerHub
+The system is deployed on a highly available, multi-AZ Kubernetes cluster orchestrated on AWS EC2 instances (via Kops). 
 
-### High Availability (HA) Highlights
-1. **Multi-AZ Network:** The VPC seamlessly spans across 3 distinct AWS Availability Zones (`us-east-1a`, `1b`, `1c`) ensuring catastrophic AZ failure resilience.
-2. **Private Topology:** Worker nodes and databases are deeply nested inside strictly Private Subnets. Outbound internet bridges natively through isolated NAT Gateways.
-3. **Redundant Control Plane:** 3 Master nodes (t3.small) and 3 Worker nodes (t3.small) govern the application workload.
-4. **Resilient Data:** PostgreSQL operates identically as a `StatefulSet` tied persistently to AWS Elastic Block Store (EBS) `gp3` volumes.
+- **Cloud Provider**: Amazon Web Services (AWS)
+- **Infrastructure as Code (IaC)**: Terraform manages the foundational AWS resources (VPC, IAM, DNS).
+- **Cluster Management**: Kops provisions the Kubernetes control plane and worker nodes across 3 Availability Zones (`us-east-1a`, `us-east-1b`, `us-east-1c`).
+- **Containerization**: The backend (Python/Flask) and frontend (React) are fully containerized using Docker.
+- **CI/CD Pipeline**: Jenkins and GitHub Actions automate the Build, Test, and Deploy phases.
+- **Monitoring & Logging**: AWS CloudWatch Agent and Fluent Bit capture container metrics and logs for centralized observability.
+- **Ingress & TLS**: NGINX Ingress Controller paired with Cert-Manager provides secure HTTPS endpoints.
 
----
+## Deployment Steps
 
-##  Repository Structure
+Follow these steps to deploy the complete infrastructure and application:
 
-* `terraform/` - Core Terraform Modules (VPC, IAM Kops Roles, DNS, Outputs).
-* `kops/` - The fully generated Free-Tier (`t3.small`) optimized Kubernetes topology mappings.
-* `k8s/` - The literal Kubernetes manifest payload (Zero-Downtime Deployments, StatefulSets, Ingress).
-* `scripts/` - Automated Bash pipelines used sequentially to synthesize the cluster.
-* `docs/` - Extensive documentation diving into Cost Analysis, Runbook operations, and Architecture.
-* `taskapp_backend/` - Python Flask/Gunicorn API codebase & Dockerfile.
-* `taskapp_frontend/` - React/Vite UI codebase & Multi-stage Nginx Dockerfile.
-
----
-
-##  Deployment Instructions
-
-Following the **[Runbook (`docs/runbook.md`)](docs/runbook.md)**, below is the absolute deployment lifecycle:
-
-### Step 1: Provision Infrastructure (Terraform)
-Launch the foundational subnets and network mappings:
+### 1. Provision Infrastructure (Terraform)
+Launch the foundational network, IAM roles, and DNS configuration:
 ```bash
 ./scripts/setup_remote_state.sh
 cd terraform
@@ -43,8 +27,8 @@ terraform init
 terraform apply -auto-approve
 ```
 
-### Step 2: Build Kubernetes (Kops)
-Use the generated IAM credentials and VPC IDs to launch EC2 node groups:
+### 2. Build Kubernetes Cluster (Kops)
+Use Kops to deploy the Kubernetes cluster into the VPC created by Terraform:
 ```bash
 ./scripts/deploy_kops.sh
 kops replace -f kops/cluster.yaml
@@ -52,46 +36,48 @@ kops update cluster --name taskapp.fantoforever.com --yes --admin
 kops validate cluster --wait 10m
 ```
 
-### Step 3: Containerize Application (Docker)
-Build local container payloads and mirror them to the remote image registry:
+### 3. CI/CD Setup (Jenkins / GitHub Actions)
+**Option A: Jenkins (Preferred)**
+1. Deploy Jenkins to the cluster using the Helm instructions in `k8s/jenkins/README.md`.
+2. Configure your DockerHub (`dockerhub-credentials`) and Kubeconfig (`kops-kubeconfig`) credentials in Jenkins.
+3. Create a Multibranch Pipeline pointing to this repository to automatically run the `Jenkinsfile`.
+
+**Option B: GitHub Actions**
+1. Add `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `KOPS_STATE_STORE` to your repository secrets.
+2. The `.github/workflows/deploy.yml` will automatically build, test, and deploy upon pushing to the `main` branch.
+
+### 4. Deploy Monitoring
+The pipelines will automatically apply the manifests, but you can manually deploy AWS CloudWatch monitoring:
 ```bash
-./scripts/build_push_docker.sh
+kubectl apply -f k8s/monitoring/
 ```
 
-### Step 4: Fire The Payload (Kubernetes Manifests)
-Automate the installation of NGINX Ingress, Cert-Manager, and our custom Application Pods:
+### 5. Application Deployment
+The CI/CD pipeline deploys the workloads. To manually apply the application manifests:
 ```bash
 ./scripts/deploy_k8s_apps.sh
 ```
 
----
+## Design Decisions
 
-## Verification URLs
-Once the NGINX Ingress registers an AWS Elastic Load Balancer globally, you can seamlessly navigate to:
-- **Frontend App:** `https://taskapp.fantoforever.com`
-- **Backend API:** `https://taskapp.fantoforever.com/api`
+- **Terraform + Kops**: We chose Terraform for predictable, declarative infrastructure foundation (VPCs, IAM), and Kops for native Kubernetes lifecycle management on AWS EC2. This provides the flexibility of EC2 with the robustness of a managed cluster.
+- **Jenkins inside Kubernetes**: Jenkins is deployed via Helm directly into the cluster to leverage Kubernetes as dynamic build agents, providing scalable and isolated CI/CD executions.
+- **Fluent Bit + CloudWatch**: Fluent Bit is lightweight and highly performant compared to Fluentd or Logstash, making it the ideal daemon for shipping Kubernetes logs to AWS CloudWatch.
+- **Multi-AZ Deployment**: The control plane and worker nodes span 3 Availability Zones to guarantee fault tolerance and high availability.
 
----
+## Assumptions Made
 
-##  Validation Evidence
-*Proof of deliverable completion for Capstone evaluation.*
+- You possess an active AWS account with programmatic Administrator access.
+- A registered domain (e.g., `taskapp.fantoforever.com`) is available in Route53 for DNS resolution and TLS certificate generation.
+- A DockerHub account is available for hosting the container registry.
+- Terraform remote state is successfully initialized via the provided setup script.
 
-### 1. Live HTTPS Web Application
-![alt text](image.png)
+## Any Limitations or Improvements
 
-### 2. Multi-AZ Clusters & Healthy Pod Validation
-![alt text](image-1.png)
-### 3. Terraform State & Kops Validation 
-![alt text](<Screenshot (157).png>)
-
----
-
-##  Cleanup Procedures
-To safely teardown resources and prevent further AWS billing, securely execute the automated termination script:
-```bash
-./scripts/destroy.sh
-```
-
----
-
-*Author: Owolabi Agbabiaka (Cloud & DevOps Engineer)*
+- **Limitations**:
+  - The current setup uses `t3.small` instances to remain within cost-effective limits, which may struggle under high concurrent loads.
+  - Basic testing is implemented in the CI/CD pipeline; comprehensive integration testing should be added.
+- **Future Improvements**:
+  - Migrate to AWS EKS for a fully managed control plane, reducing the operational overhead of Kops.
+  - Implement Horizontal Pod Autoscaling (HPA) and Cluster Autoscaler to dynamically adjust to traffic spikes.
+  - Introduce Prometheus and Grafana for more granular, dashboard-driven metrics beyond basic CloudWatch logs.

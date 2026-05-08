@@ -29,6 +29,11 @@ resource "aws_iam_group_policy_attachment" "kops_vpc" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonVPCFullAccess"
 }
 
+resource "aws_iam_group_policy_attachment" "kops_cloudwatch" {
+  group      = aws_iam_group.kops.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
 # IAM User for Kops
 resource "aws_iam_user" "kops" {
   name = "${var.project_name}-kops-user"
